@@ -27,7 +27,9 @@ Start the recording while this command runs to collect the dataset.
 
 ### Outputs 
 
+Uploading Sharp_turn.mp4…
+
+
+
 1. Video output: https://drive.google.com/drive/folders/1iXjCQh5sCZEpg1p6fzWvC7YgAyeC9uQF
 2. Data Collected: https://drive.google.com/drive/folders/1_nsHW8zgRbLLXc5W6bpPYwH0OgZFlNOx 
-
-![Output_video](https://drive.google.com/file/d/1FiTIBKe_xy9aCCDvg0UDBUFsj23oOey8/view?usp=sharing)
