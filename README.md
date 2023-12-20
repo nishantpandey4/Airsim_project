@@ -27,8 +27,9 @@ Start the recording while this command runs to collect the dataset.
 
 ### Outputs 
 
+![Untitled video - Made with Clipchamp](https://github.com/nishantpandey4/Enhancing-Autonomous-Vehicle-Control-Adaptive-Neural-Network-Based-Control-in-AirSim-Simulator/assets/127569735/3cba913b-22d1-473d-9950-5d50b3449010)
 
-https://github.com/nishantpandey4/Enhancing-Autonomous-Vehicle-Control-Adaptive-Neural-Network-Based-Control-in-AirSim-Simulator/assets/127569735/e96153d7-521b-415c-8d7e-083247a66cb7
+
 
 
 1. Video output: https://drive.google.com/drive/folders/1iXjCQh5sCZEpg1p6fzWvC7YgAyeC9uQF
