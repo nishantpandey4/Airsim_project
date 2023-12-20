@@ -1,3 +1,9 @@
+### Author
+Nishant AwdeshKumar Pandey
+
+### Research Paper
+The home directory has the research paper written ```Paper.pdf```
+
 ### Environment Setup
 
 1. [Install Anaconda](https://conda.io/docs/user-guide/install/index.html) with Python 3.5 or higher.
