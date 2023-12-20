@@ -30,4 +30,4 @@ Start the recording while this command runs to collect the dataset.
 1. Video output: https://drive.google.com/drive/folders/1iXjCQh5sCZEpg1p6fzWvC7YgAyeC9uQF
 2. Data Collected: https://drive.google.com/drive/folders/1_nsHW8zgRbLLXc5W6bpPYwH0OgZFlNOx 
 
-![Output_video](Sharp_turn.mp4)
+![Output_video]((https://github.com/nishantpandey4/Enhancing-Autonomous-Vehicle-Control-Adaptive-Neural-Network-Based-Control-in-AirSim-Simulator/blob/main/Sharp_turn.mp4)https://github.com/nishantpandey4/Enhancing-Autonomous-Vehicle-Control-Adaptive-Neural-Network-Based-Control-in-AirSim-Simulator/blob/main/Sharp_turn.mp4)
