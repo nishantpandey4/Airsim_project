@@ -40,7 +40,7 @@ Start the recording while this command runs to collect the dataset.
 
 ### Paper
 
-[Research Paper]()
+[Research Paper](https://github.com/nishantpandey4/Enhancing-Autonomous-Vehicle-Control-Adaptive-Neural-Network-Based-Control-in-AirSim-Simulator/blob/main/Paper.pdf)
    
 ### References
 
