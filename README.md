@@ -37,6 +37,10 @@ Start the recording while this command runs to collect the dataset.
 
 1. Video output: https://drive.google.com/drive/folders/1iXjCQh5sCZEpg1p6fzWvC7YgAyeC9uQF
 2. Data Collected: https://drive.google.com/drive/folders/1_nsHW8zgRbLLXc5W6bpPYwH0OgZFlNOx
+
+### Paper
+
+[Research Paper]()
    
 ### References
 
