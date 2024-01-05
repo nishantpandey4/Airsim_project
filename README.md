@@ -11,7 +11,7 @@ The home directory has the research paper written ```Paper.pdf```
 3. [Install h5py](http://docs.h5py.org/en/latest/build.html)
 4. [Install Keras](https://keras.io/#installation) and [configure the Keras backend](https://keras.io/backend/) to work with TensorFlow (default) or CNTK.
 5. [Install AzCopy](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azcopy). Be sure to add the location for the AzCopy executable to your system path.
-6. Install the other dependencies. From your anaconda environment, run "InstallPackages.py" as root or administrator. This installs the following packages into your environment:
+6. Install the other dependencies. From your Anaconda environment, run "InstallPackages.py" as root or administrator. This installs the following packages into your environment:
     * jupyter
     * matplotlib v. 2.1.2
     * image
@@ -27,8 +27,8 @@ The home directory has the research paper written ```Paper.pdf```
 1. To run the package and create waypoints for the Model predictive controller. Run ```python waypoints.py``` and control the car manually and make it follow the complex and straight paths. 
 2. Run ```python client_controller.py``` to run Model predictive controller. 
 Start the recording while this command runs to collect the dataset.
-3. Open ```DataExplorationAndPreparation.ipynb``` and run all the cells.
-4. Open ```TrainModel.ipynb``` and run all the cells to train the model. Modify the Region of interest, various hyperparameter according to the dataset size and needs.
+3. Open ``` DataExplorationAndPreparation.ipynb``` and run all the cells.
+4. Open ``` TrainModel.ipynb``` and run all the cells to train the model. Modify the Region of interest, and various hyperparameters according to the dataset size and needs.
 5. Run ```drive_model.py``` to test the model. 
 
 ### Outputs 
