@@ -51,7 +51,7 @@ class MPCController(Controller):
         self.Lf = 2.5  # TODO: check if true
 
         # How the polynomial fitting the desired curve is fitted
-        self.steps_poly = 50
+        self.steps_poly = 30
         self.poly_degree = 3
 
         # Bounds for the optimizer
@@ -169,7 +169,7 @@ class MPCController(Controller):
         return cost_func, cost_grad_func, constr_funcs
 
 
-    def control(self, pts_2D, car_state, pose):
+    def control(self, pts_2D, car_state, pose, depth_array):
         which_closest, _, location = self._calc_closest_dists_and_location(pose, pts_2D)
 
         # Stabilizes polynomial fitting
@@ -183,7 +183,8 @@ class MPCController(Controller):
         # orient = measurements.player_measurements.transform.orientation
         orient = np.array(
             [pose.orientation.x_val, pose.orientation.y_val, pose.orientation.z_val, pose.orientation.w_val])
-        v = car_state.speed  # km / h
+        v = car_state.speed # km / h
+        # ψ = np.arctan2(orient.y, orient.x)
         ψ = np.arctan2(2.0 * (orient[3] * orient[2] + orient[0] * orient[1]),
                        1.0 - 2.0 * (orient[1] ** 2 + orient[2] ** 2))
 
@@ -203,11 +204,17 @@ class MPCController(Controller):
         self.state0 = self.get_state0(v, cte, eψ, self.steer, self.throttle, poly)
         result = self.minimize_cost(self.bounds, self.state0, init)
 
+        # Left here for debugging
+        # self.steer = -0.6 * cte - 5.5 * (cte - prev_cte)
+        # prev_cte = cte
+        # self.throttle = clip_throttle(self.throttle, v, target_speed)
+
         if 'success' in result.message:
             self.steer = result.x[-self.steps_ahead]
             self.throttle = result.x[-2*self.steps_ahead]
         else:
-            print('Unsuccessful optimization')
+            # print('Unsuccessful optimization')
+            print('Optimization failed with message:', result.message)
 
         one_log_dict = {
             'x': x,
@@ -252,10 +259,7 @@ class MPCController(Controller):
         return self.state0
 
     def generate_fun(self, symb_fun, vars_, init, poly):
-        '''This function generates a function of the form `fun(x, *args)` because
-        that's what the scipy `minimize` API expects (if we don't want to minimize
-        over certain variables, we pass them as `args`)
-        '''
+
         args = init + poly
         return sym.lambdify((vars_, *args), symb_fun, self.evaluator)
         # Equivalent to (but faster than):
@@ -269,6 +273,15 @@ class MPCController(Controller):
             derive_by_array(symb_fun, vars_+args)[:len(vars_)],
             self.evaluator
         )
+        # Equivalent to (but faster than):
+        # cost_grad_funcs = [
+        #     generate_fun(symb_fun.diff(var), vars_, init, poly)
+        #     for var in vars_
+        # ]
+        # return lambda x, *args: [
+        #     grad_func(np.r_[x, args]) for grad_func in cost_grad_funcs
+        # ]
+
     def minimize_cost(self, bounds, x0, init):
         # TODO: this is a bit retarded, but hey -- that's scipy API's fault ;)
         for constr_func in self.constr_funcs:
