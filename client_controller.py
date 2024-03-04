@@ -8,6 +8,7 @@ import random
 import time
 import pandas as pd
 import numpy as np
+from scipy.interpolate import splprep, splev
 from scipy.interpolate import interp1d
 from model_predictive_control import MPCController
 from PIL import Image
@@ -16,6 +17,15 @@ import cv2
 
 client = airsim.CarClient()
 client.confirmConnection()
+
+initial_pose = airsim.Pose(
+    airsim.Vector3r(-0.03267443925142288, -0.0007991418242454529, 2.680995464324951),
+    airsim.Quaternionr(0.003961396403610706, 0.0008345289970748127, -0.04337545484304428, -0.9990506172180176)
+)
+
+car_name = "PhysXCar"
+client.simSetVehiclePose(initial_pose, True, "PhysXCar")
+
 client.enableApiControl(True)
 car_controls = airsim.CarControls()
 print('AirSimClient connected')
@@ -25,22 +35,13 @@ car_controls.steering = 0
 car_controls.throttle = 0
 car_controls.brake = 0
 
-# I need to prepend `sys.path` with '..' to get to the carla module there.
-# I'm pre-pending `sys.path` because there are other carla modules specified
-# in PYTHONPATH already
-import sys
-sys.path = ['..'] + sys.path
 
-# from carla.client import make_carla_client
-# from carla.sensor import Camera, Lidar
-# from carla.settings import CarlaSettings
-# from carla.tcp import TCPConnectionError
 vehicle_name = "PhysXCar"
 STEER_BOUND = 1.0
 STEER_BOUNDS = (-STEER_BOUND, STEER_BOUND)
-IMAGE_SIZE = (256, 144)
+IMAGE_SIZE = (144, 256)
 IMAGE_DECIMATION = 4
-MIN_SPEED = 5
+MIN_SPEED = 10
 DTYPE = 'float32'
 STEER_NOISE = lambda: random.uniform(-0.1, 0.1)
 THROTTLE_NOISE = lambda: random.uniform(-0.05, 0.05)
@@ -49,24 +50,16 @@ THROTTLE_NOISE_NN = lambda: 0 #random.uniform(-0.05, 0.05)
 IMAGE_CLIP_LOWER = IMAGE_SIZE[0]
 IMAGE_CLIP_UPPER = 0
 
-def clip_throttle(throttle, curr_speed, target_speed):
-    return np.clip(
-        throttle - 0.01 * (curr_speed-target_speed),
-        0.4,
-        0.9
-    )
 
-def print_measurements(measurements):
-    number_of_agents = len(measurements.non_player_agents)
-    player_measurements = measurements.player_measurements
-    message = 'Vehicle at ({pos_x:.1f}, {pos_y:.1f}), '
-    message += '{speed:.0f}, '
-    message = message.format(
-        pos_x=player_measurements.transform.location.x,
-        pos_y=player_measurements.transform.location.y,
-        speed=player_measurements.forward_speed, # m/s -> km/h
-    )
-    print_over_same_line(message)
+def done():
+    car_controls.steering = 0
+    car_controls.throttle = 0
+    car_controls.brake = 1
+
+    client.setCarControls(car_controls)
+    print("Done.")
+
+
 
 def run_airsim_client(args):
     frames_per_episode = 10000
@@ -79,12 +72,19 @@ def run_airsim_client(args):
         'target_speed': args.target_speed,
     }
 
-
     track_DF = pd.read_csv('path_data.txt', header=None)
     # The track data are rescaled by 100x with relation to Carla measurements
+    # track_DF = track_DF / 100
+
+    # pts_2D = track_DF.loc[:, [0, 1]].values
+    # tck, u = splprep(pts_2D.T, u=None, s=4, per=1, k=3)
+    # u_new = np.linspace(u.min(), u.max(), spline_points)
+    # x_new, y_new = splev(u_new, tck, der=0)
+    # pts_2D = np.c_[x_new, y_new]
+
     pts_2D = track_DF.iloc[:, [0, 1]].values
 
-    # # Generating parameter values for interpolation
+    # Generating parameter values for interpolation
     # spline_points = 100  # You can adjust this value based on your needs
     u = np.arange(pts_2D.shape[0])
 
@@ -103,13 +103,37 @@ def run_airsim_client(args):
     pts_2D = np.column_stack((x_new, y_new))
 
     car_controls.steering = 0.0
-    car_controls.throttle = 0.0
+    car_controls.throttle = 0.5
 
-    # depth_array = None
+    depth_array = None
 
     if args.controller_name == 'mpc':
         weather_id = 2
         controller = MPCController(args.target_speed)
+    elif args.controller_name == 'pid':
+        weather_id = 1
+        controller = PDController(args.target_speed)
+    # elif args.controller_name == 'pad':
+    #     weather_id = 5
+    #     controller = PadController()
+    elif args.controller_name == 'nn':
+        # Import it here because importing TensorFlow is time consuming
+        from neural_network_controller import NNController  # noqa
+        weather_id = 11
+        controller = NNController(
+            args.target_speed,
+            args.model_dir_name,
+            args.which_model,
+            args.throttle_coeff_A,
+            args.throttle_coeff_B,
+            args.ensemble_prediction,
+        )
+        report['model_dir_name'] = args.model_dir_name
+        report['which_model'] = args.which_model
+        report['throttle_coeff_A'] = args.throttle_coeff_A
+        report['throttle_coeff_B'] = args.throttle_coeff_B
+        report['ensemble_prediction'] = args.ensemble_prediction
+
     episode = 0
     num_fails = 0
 
@@ -129,6 +153,7 @@ def run_airsim_client(args):
 
         status, depth_storage, one_log_dict, log_dicts, distance_travelled = run_episode(
             client,
+            car_controls,
             controller,
             pts_2D,
             depth_storage,
@@ -138,7 +163,7 @@ def run_airsim_client(args):
             args.store_data
         )
 
-        status = 'TRUE'
+        # status = 'TRUE'
 
         if 'FAIL' in status:
             num_fails += 1
@@ -146,6 +171,11 @@ def run_airsim_client(args):
             continue
         else:
             print('SUCCESS: ' + str(episode))
+            # report['distances'].append(distance_travelled)
+            if args.store_data:
+                np.save('depth_data/{}_depth_data{}.npy'.format(args.controller_name, episode), depth_storage)
+                # pd.DataFrame(log_dicts).to_csv(
+                #     'logs/{}_racetrack{}_log{}.txt'.format(args.controller_name, args.racetrack, episode), index=False)
             episode += 1
 
     report['num_fails'] = num_fails
@@ -154,40 +184,69 @@ def run_airsim_client(args):
     # pd.to_pickle(report, report_output)
 
 
-def run_episode(client, controller, pts_2D, depth_storage, log_dicts, frames_per_episode, controller_name, store_data):
+def run_episode(client, car_controls, controller, pts_2D, depth_storage, log_dicts, frames_per_episode, controller_name, store_data):
     num_laps = 0
     curr_closest_waypoint = None
     prev_closest_waypoint = None
     num_waypoints = pts_2D.shape[0]
-    # num_steps_below_min_speed = 0
+    num_steps_below_min_speed = 0
 
-    # MIN_DEPTH_METERS = 0
-    # MAX_DEPTH_METERS = 50
+    MIN_DEPTH_METERS = 0
+    MAX_DEPTH_METERS = 50
 
-    # Get vehicle pose
-    pose = client.simGetVehiclePose()
+    for frame in range(frames_per_episode):
+        response = client.simGetImages([airsim.ImageRequest("0", airsim.ImageType.DepthPerspective, True, False)])[0]
 
-    # Get car state
-    car_state = client.getCarState()
-    one_log_dict = controller.control(pts_2D, car_state, pose)
+        # Reshape to a 2d array with correct width and height
+        depth_img_in_meters = airsim.list_to_2d_float_array(response.image_data_float, response.width, response.height)
+        depth_img_in_meters = depth_img_in_meters.reshape(response.height, response.width, 1)
 
-    prev_closest_waypoint = curr_closest_waypoint
-    curr_closest_waypoint = one_log_dict['which_closest']
+        # Lerp 0..100m to 0..255 gray values
+        depth_8bit_lerped = np.interp(depth_img_in_meters, (MIN_DEPTH_METERS, MAX_DEPTH_METERS), (0, 255))
+        cv2.imwrite("2.png", depth_8bit_lerped.astype('uint8'))
 
-    # Check if we made a whole lap
-    if prev_closest_waypoint is not None:
+        # Get depth data from the response
+        depth_data = np.array(response.image_data_float, dtype=np.float32)
 
-        if 0.9 * prev_closest_waypoint > curr_closest_waypoint:
-            num_laps += 1
+        # Reshape the depth data to match the image dimensions
+        depth_height = response.height
+        depth_width = response.width
+        depth_array = depth_data.reshape((depth_height, depth_width))
+        depth_array = depth_array[IMAGE_CLIP_UPPER:IMAGE_CLIP_LOWER, :][::IMAGE_DECIMATION, ::IMAGE_DECIMATION]
 
-    steer, throttle = one_log_dict['steer'], one_log_dict['throttle']
-    car_controls.steering = steer
-    car_controls.throttle = throttle
+        # Get vehicle pose
+        pose = client.simGetVehiclePose()
 
-    client.setCarControls(car_controls)
+        # Get car state
+        car_state = client.getCarState()
 
-    distance_travelled = num_laps + curr_closest_waypoint / float(num_waypoints)
-    return 'SUCCESS', depth_storage, one_log_dict, log_dicts, distance_travelled
+        one_log_dict = controller.control(pts_2D, car_state, pose, depth_array)
+
+        prev_closest_waypoint = curr_closest_waypoint
+        curr_closest_waypoint = one_log_dict['which_closest']
+
+        # Check if we made a whole lap
+        if prev_closest_waypoint is not None:
+            # It's possible for `prev_closest_waypoint` to be larger than `curr_closest_waypoint`
+            # but if `0.9*prev_closest_waypoint` is larger than `curr_closest_waypoint`
+            # it definitely means that we completed a lap (or the car had been teleported)
+            if 0.9 * prev_closest_waypoint > curr_closest_waypoint:
+                num_laps += 1
+
+        steer, throttle = one_log_dict['steer'], one_log_dict['throttle']
+        car_controls.steering = steer
+        car_controls.throttle = throttle
+
+        # Send control commands to the vehicle
+        client.setCarControls(car_controls)
+
+        if store_data:
+            depth_storage[..., frame] = depth_array
+            one_log_dict['frame'] = frame
+            log_dicts[frame] = one_log_dict
+
+        distance_travelled = num_laps + curr_closest_waypoint / float(num_waypoints)
+        return 'SUCCESS', depth_storage, one_log_dict, log_dicts, distance_travelled
 
 
 def main():
@@ -200,13 +259,13 @@ def main():
         help='graphics quality level, a lower level makes the simulation run considerably faster.')
     argparser.add_argument(
         '-e', '--num_episodes',
-        default=999,
+        default=400,
         type=int,
         dest='num_episodes',
         help='Number of episodes')
     argparser.add_argument(
         '-s', '--speed',
-        default=10.0,
+        default=7,
         type=float,
         dest='target_speed',
         help='Target speed')
@@ -220,11 +279,6 @@ def main():
         action='store_false',
         dest='store_data',
         help='Should the data be stored?')
-    # argparser.add_argument(
-    #     '-rep', '--report_filename',
-    #     default=None,
-    #     dest='report_filename',
-    #     help='Report filename')
 
     # For the NN controller
     argparser.add_argument(
@@ -256,29 +310,14 @@ def main():
         help='Whether predictions for steering should be aggregated')
 
     args = argparser.parse_args()
-
-    # assert args.report_filename is not None, (
-    #     'You need to provide a report filename (argument -rep or'
-    #     ' --report_filename)'
-    # )
-
-    # log_level = logging.DEBUG if args.debug else logging.INFO
-    # logging.basicConfig(format='%(levelname)s: %(message)s', level=log_level)
-    #
-    # logging.info('listening to server %s:%s', args.host, args.port)
-
     args.out_filename_format = '_out/episode_{:0>4d}/{:s}/{:0>6d}'
 
     while True:
         # try:
         run_airsim_client(args)
 
-        print('Done.')
+        done()
         return
-
-        # except TCPConnectionError as error:
-        #     logging.error(error)
-        #     time.sleep(1)
 
 
 if __name__ == '__main__':
